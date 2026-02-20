@@ -1,0 +1,8 @@
+venv/
+__pycache__/
+*.pyc
+database/eacts_survey.db
+*.db
+.DS_Store
+uploads/*.xlsx
+uploads/*.xls
