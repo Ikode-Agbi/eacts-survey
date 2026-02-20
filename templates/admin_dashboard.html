@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        /* ── Status toggle ── */
+        .status-btn {
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+        }
+        .status-btn:hover .badge { opacity: 0.75; }
+
+        /* ── 3×2 action grid ── */
+        .action-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            min-width: 210px;
+        }
+        /* form is invisible to grid so the button inside takes the cell */
+        .grid-form { display: contents; }
+        .action-grid .btn-sm {
+            width: 100%;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        /* ── Table card wrapper ── */
+        .table-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 6px 20px rgba(0,0,0,0.06);
+            overflow: hidden;
+        }
+
+        /* override data-table header for a fresher look */
+        .table-card .data-table th {
+            background: #1b3a5c;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            padding: 14px 12px;
+        }
+        .table-card .data-table td { padding: 14px 12px; }
+        .table-card .data-table tr:hover td { background: #f7f9fc; }
+
+        /* ── Responsive Responses / Created cell ── */
+        .meta-cell { color: #666; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="page-container">
+
+        <div class="page-header">
+            <h1>Admin Dashboard</h1>
+            <div class="header-actions">
+                <a href="/admin/upload" class="btn btn-primary">+ Upload Excel</a>
+                <a href="/admin/create-manual" class="btn btn-primary">+ Create Manually</a>
+                <a href="/admin/logout" class="btn btn-danger">Logout</a>
+            </div>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        {% if surveys %}
+        <div class="table-card">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th style="width:100px;">Status</th>
+                        <th style="width:90px;">Responses</th>
+                        <th style="width:105px;">Created</th>
+                        <th style="width:230px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for survey in surveys %}
+                        <tr {% if not survey.is_active %}class="inactive-row"{% endif %}>
+                            <td>
+                                <strong>{{ survey.title }}</strong>
+                                {% if survey.description %}
+                                    <div class="meta-cell" style="margin-top:3px;">
+                                        {{ survey.description[:100] }}{% if survey.description|length > 100 %}…{% endif %}
+                                    </div>
+                                {% endif %}
+                            </td>
+
+                            <td>
+                                <form method="POST"
+                                      action="{{ url_for('admin.toggle_survey', survey_id=survey.id) }}"
+                                      style="display:inline-block;">
+                                    <button type="submit" class="status-btn"
+                                            title="Click to toggle active / inactive">
+                                        <span class="badge {% if survey.is_active %}badge-active{% else %}badge-inactive{% endif %}">
+                                            {% if survey.is_active %}Active{% else %}Inactive{% endif %}
+                                        </span>
+                                    </button>
+                                </form>
+                            </td>
+
+                            <td class="meta-cell">{{ survey.responses|length }}</td>
+                            <td class="meta-cell">{{ survey.created_at.strftime('%Y-%m-%d') }}</td>
+
+                            <td>
+                                <div class="action-grid">
+                                    {# Row 1 #}
+                                    <a href="{{ url_for('admin.edit_survey', survey_id=survey.id) }}"
+                                       class="btn btn-sm btn-warning">Edit</a>
+                                    <a href="{{ url_for('admin.view_results', survey_id=survey.id) }}"
+                                       class="btn btn-sm btn-primary">Results</a>
+                                    <a href="{{ url_for('survey.take_survey', survey_id=survey.id) }}"
+                                       class="btn btn-sm btn-secondary">Preview</a>
+
+                                    {# Row 2 #}
+                                    <a href="{{ url_for('admin.export_results', survey_id=survey.id) }}"
+                                       class="btn btn-sm btn-success">Export</a>
+                                    <button data-url="{{ url_for('survey.take_survey', survey_id=survey.id, _external=True) }}"
+                                            onclick="copyLink(this)"
+                                            class="btn btn-sm btn-primary">Copy Link</button>
+                                    <form class="grid-form" method="POST"
+                                          action="{{ url_for('admin.delete_survey', survey_id=survey.id) }}"
+                                          onsubmit="return confirm('Delete this survey and all its responses? This cannot be undone.');">
+                                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+            <div class="card" style="text-align:center; padding:60px;">
+                <h3 style="color:#888;">No surveys yet</h3>
+                <p>Create your first survey to get started.</p>
+                <a href="/admin/upload" class="btn btn-primary">Upload from Excel</a>
+                <a href="/admin/create-manual" class="btn btn-secondary" style="margin-left:10px;">Create Manually</a>
+            </div>
+        {% endif %}
+
+    </div>
+
+    <script>
+        function copyLink(btn) {
+            var url = btn.dataset.url;
+            var orig = btn.textContent.trim();
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(url).then(function() {
+                    btn.textContent = 'Copied!';
+                    btn.style.background = '#4caf50';
+                    setTimeout(function() { btn.textContent = orig; btn.style.background = ''; }, 2000);
+                });
+            } else {
+                var tmp = document.createElement('input');
+                tmp.value = url;
+                document.body.appendChild(tmp);
+                tmp.select();
+                document.execCommand('copy');
+                document.body.removeChild(tmp);
+                btn.textContent = 'Copied!';
+                setTimeout(function() { btn.textContent = orig; }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ survey.title }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        .survey-header { background: white; padding: 30px; margin-bottom: 20px; border-radius: 8px; }
+        .save-resume-box { background: #e3f2fd; padding: 20px; margin-bottom: 20px; border-radius: 8px; border-left: 4px solid #2196f3; }
+        .section-container { background: white; padding: 30px; margin-bottom: 20px; border-radius: 8px; }
+        .section-title { color: #0066cc; font-size: 24px; margin-bottom: 10px; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+        .section-description { color: #666; margin-bottom: 20px; font-style: italic; }
+        .question-box { background: #f9f9f9; padding: 20px; margin-bottom: 20px; border-radius: 5px; border-left: 4px solid #0066cc; }
+        .question-number { color: #0066cc; font-weight: bold; margin-bottom: 5px; }
+        .question-text { font-size: 18px; margin-bottom: 15px; }
+        .choices { display: flex; gap: 15px; margin-bottom: 15px; }
+        .choice-button { flex: 1; }
+        .choice-button input { display: none; }
+        .choice-button label { display: block; padding: 12px; background: white; border: 2px solid #ddd; border-radius: 5px; text-align: center; cursor: pointer; transition: all 0.3s; }
+        .choice-button input:checked + label { border-color: #0066cc; background: #e3f2fd; font-weight: bold; }
+        .choice-button label:hover { border-color: #0066cc; }
+        textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; resize: vertical; }
+        .button-container { display: flex; gap: 15px; margin-top: 20px; }
+        .submit-button { flex: 2; background: #0066cc; color: white; padding: 15px 40px; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; }
+        .submit-button:hover { background: #0052a3; }
+        .save-button { flex: 1; background: #4caf50; color: white; padding: 15px 40px; font-size: 18px; border: none; border-radius: 5px; cursor: pointer; }
+        .save-button:hover { background: #45a049; }
+        .email-input { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 5px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class="survey-header">
+        <h1>{{ survey.title }}</h1>
+        {% if survey.description %}
+            <p>{{ survey.description }}</p>
+        {% endif %}
+        <p><strong>Total Sections:</strong> {{ sections|length }} | <strong>Total Questions:</strong> {{ survey.get_all_questions()|length }}</p>
+        
+        {% if existing_response %}
+            <div class="save-resume-box">
+                <strong>✓ Resuming your saved progress</strong>
+                <p>Your previous answers have been loaded. Complete the survey or save again to update your progress.</p>
+            </div>
+        {% endif %}
+    </div>
+    
+    <div class="save-resume-box">
+        <h3>💾 Save & Resume Later</h3>
+        <p>Don't have time to finish? Enter your email and click "Save Progress" to get a link to continue later.</p>
+        <input type="email" id="saveEmail" class="email-input" placeholder="your.email@example.com" 
+               {% if existing_response %}value="{{ existing_response.email }}"{% endif %}>
+    </div>
+    
+    <form method="POST" action="{{ url_for('survey.submit_survey', survey_id=survey.id) }}" id="surveyForm">
+        {% if existing_response %}
+            <input type="hidden" name="resume_token" value="{{ existing_response.resume_token }}">
+        {% endif %}
+        
+        {% for section in sections %}
+            <div class="section-container">
+                <h2 class="section-title">{{ section.title }}</h2>
+                {% if section.description %}
+                    <p class="section-description">{{ section.description }}</p>
+                {% endif %}
+                
+                {% for question in section.questions|sort(attribute='question_number') %}
+                    <div class="question-box">
+                        <div class="question-number">Question {{ loop.index }}</div>
+                        <div class="question-text">{{ question.question_text }}</div>
+                        
+                        {% set existing_answer = None %}
+                        {% if existing_response %}
+                            {% for answer in existing_response.answers %}
+                                {% if answer.question_id == question.id %}
+                                    {% set existing_answer = answer %}
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        
+                        <div class="choices">
+                            <div class="choice-button">
+                                <input type="radio" 
+                                       id="q{{ question.id }}_yes" 
+                                       name="question_{{ question.id }}" 
+                                       value="Yes" 
+                                       {% if existing_answer and existing_answer.choice == 'Yes' %}checked{% endif %}
+                                       required>
+                                <label for="q{{ question.id }}_yes">Yes</label>
+                            </div>
+                            
+                            <div class="choice-button">
+                                <input type="radio" 
+                                       id="q{{ question.id }}_no" 
+                                       name="question_{{ question.id }}" 
+                                       value="No" 
+                                       {% if existing_answer and existing_answer.choice == 'No' %}checked{% endif %}
+                                       required>
+                                <label for="q{{ question.id }}_no">No</label>
+                            </div>
+                            
+                            <div class="choice-button">
+                                <input type="radio" 
+                                       id="q{{ question.id }}_abstain" 
+                                       name="question_{{ question.id }}" 
+                                       value="Abstain" 
+                                       {% if existing_answer and existing_answer.choice == 'Abstain' %}checked{% endif %}
+                                       required>
+                                <label for="q{{ question.id }}_abstain">Abstain</label>
+                            </div>
+                        </div>
+                        
+                        <label>Elaboration (optional):</label>
+                        <textarea name="elaboration_{{ question.id }}" 
+                                  rows="2" 
+                                  placeholder="Please explain your reasoning...">{% if existing_answer and existing_answer.elaboration %}{{ existing_answer.elaboration }}{% endif %}</textarea>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+        
+        <div class="button-container">
+            <button type="button" class="save-button" onclick="saveProgress()">💾 Save Progress</button>
+            <button type="submit" class="submit-button">✓ Submit Survey</button>
+        </div>
+    </form>
+    
+    <script>
+        function saveProgress() {
+            var email = document.getElementById('saveEmail').value;
+            
+            if (!email) {
+                alert('Please enter your email address to save progress');
+                return;
+            }
+            
+            // Change form action to save endpoint
+            var form = document.getElementById('surveyForm');
+            form.action = '{{ url_for("survey.save_progress", survey_id=survey.id) }}';
+            
+            // Add email to form
+            var emailInput = document.createElement('input');
+            emailInput.type = 'hidden';
+            emailInput.name = 'email';
+            emailInput.value = email;
+            form.appendChild(emailInput);
+            
+            // Submit
+            form.submit();
+        }
+    </script>
+</body>
+</html>

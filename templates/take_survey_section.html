@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ survey.title }} - Section {{ section_num }} of {{ total_sections }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 900px; 
+            margin: 0 auto; 
+            padding: 20px; 
+            background: #f5f5f5; 
+        }
+        
+        .progress-bar-container {
+            background: white;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .progress-text {
+            text-align: center;
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0066cc, #00a8ff);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .survey-header { 
+            background: white; 
+            padding: 30px; 
+            margin-bottom: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .section-container { 
+            background: white; 
+            padding: 30px; 
+            margin-bottom: 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .section-title { 
+            color: #0066cc; 
+            font-size: 28px; 
+            margin-bottom: 10px; 
+            border-bottom: 3px solid #0066cc; 
+            padding-bottom: 10px; 
+        }
+        
+        .section-description { 
+            color: #666; 
+            margin-bottom: 30px; 
+            font-style: italic; 
+            font-size: 16px;
+        }
+        
+        .question-box { 
+            background: #f9f9f9; 
+            padding: 25px; 
+            margin-bottom: 25px; 
+            border-radius: 8px; 
+            border-left: 4px solid #0066cc; 
+        }
+        
+        .question-number { 
+            color: #0066cc; 
+            font-weight: bold; 
+            font-size: 14px;
+            margin-bottom: 8px; 
+        }
+        
+        .question-text { 
+            font-size: 18px; 
+            margin-bottom: 20px; 
+            line-height: 1.5;
+        }
+        
+        .choices { 
+            display: flex; 
+            gap: 15px; 
+            margin-bottom: 20px; 
+        }
+        
+        .choice-button { 
+            flex: 1; 
+        }
+        
+        .choice-button input { 
+            display: none; 
+        }
+        
+        .choice-button label { 
+            display: block; 
+            padding: 15px; 
+            background: white; 
+            border: 2px solid #ddd; 
+            border-radius: 8px; 
+            text-align: center; 
+            cursor: pointer; 
+            transition: all 0.3s; 
+            font-weight: 500;
+        }
+        
+        .choice-button input:checked + label { 
+            border-color: #0066cc; 
+            background: #e3f2fd; 
+            font-weight: bold; 
+        }
+        
+        .choice-button label:hover { 
+            border-color: #0066cc; 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,102,204,0.2);
+        }
+        
+        textarea { 
+            width: 100%; 
+            padding: 12px; 
+            border: 2px solid #ddd; 
+            border-radius: 8px; 
+            resize: vertical; 
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+        
+        .navigation-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .save-section {
+            background: #fff3cd;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin-bottom: 20px;
+        }
+
+        .save-section h4 {
+            margin: 0 0 10px 0;
+            color: #856404;
+        }
+
+        .save-confirmed-box {
+            background: #d4edda;
+            border: 2px solid #28a745;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .save-confirmed-box h4 {
+            margin: 0 0 10px 0;
+            color: #155724;
+            font-size: 18px;
+        }
+
+        .resume-link-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .resume-link-input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            font-size: 13px;
+            background: white;
+            color: #155724;
+            font-family: monospace;
+        }
+
+        .save-error-box {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            border-radius: 5px;
+            padding: 12px 16px;
+            color: #721c24;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+        
+        .email-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        
+        .button-row {
+            display: flex;
+            gap: 15px;
+            justify-content: space-between;
+        }
+        
+        .btn {
+            padding: 15px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: #0066cc;
+            color: white;
+            flex: 2;
+        }
+        
+        .btn-primary:hover {
+            background: #0052a3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,102,204,0.3);
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            flex: 1;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
+        .btn-success {
+            background: #4caf50;
+            color: white;
+            flex: 2;
+        }
+        
+        .btn-success:hover {
+            background: #45a049;
+        }
+        
+        .btn-save {
+            background: #ff9800;
+            color: white;
+        }
+        
+        .btn-save:hover {
+            background: #e68900;
+        }
+
+        .reasoning-hint {
+            background: #fff8e1;
+            border-left: 3px solid #ffc107;
+            padding: 8px 12px;
+            border-radius: 0 5px 5px 0;
+            font-size: 13px;
+            color: #856404;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="flash-message flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if resume_link %}
+    <div class="save-confirmed-box">
+        <h4>Progress Saved!</h4>
+        <p style="margin:0 0 8px; color:#155724;">
+            Your answers on this section have been saved.
+            {% if saved_to_email %}
+                A copy has been emailed to <strong>{{ saved_to_email }}</strong>.
+            {% else %}
+                <strong>Copy the link below</strong> — it is the only way to return to this survey later.
+            {% endif %}
+        </p>
+        <div class="resume-link-row">
+            <input class="resume-link-input" type="text" value="{{ resume_link }}" readonly id="resumeLinkInput">
+            <button type="button" onclick="copyResumeLink()" class="btn btn-success" id="copyResumeLinkBtn">
+                Copy Link
+            </button>
+        </div>
+        <p style="margin:10px 0 0; font-size:13px; color:#555;">
+            You can continue answering below, or close this tab and use the link later.
+        </p>
+    </div>
+    {% endif %}
+
+    <!-- Progress Bar -->
+    <div class="progress-bar-container">
+        <div class="progress-text">
+            Section {{ section_num }} of {{ total_sections }}
+        </div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: {{ (section_num / total_sections * 100)|int }}%">
+                {{ (section_num / total_sections * 100)|int }}%
+            </div>
+        </div>
+    </div>
+    
+    <!-- Survey Header -->
+    <div class="survey-header">
+        <h1>{{ survey.title }}</h1>
+        {% if survey.description %}
+            <p>{{ survey.description }}</p>
+        {% endif %}
+    </div>
+    
+    <!-- Current Section -->
+    <form method="POST" id="sectionForm">
+        <div class="section-container">
+            <h2 class="section-title">{{ section.title }}</h2>
+            {% if section.description %}
+                <p class="section-description">{{ section.description }}</p>
+            {% endif %}
+            
+            {% for question in section.questions|sort(attribute='question_number') %}
+                <div class="question-box">
+                    <div class="question-number">Question {{ question.question_number }}</div>
+                    <div class="question-text">{{ question.question_text }}</div>
+                    
+                    {% set existing_answer = None %}
+                    {% if existing_response %}
+                        {% for answer in existing_response.answers %}
+                            {% if answer.question_id == question.id %}
+                                {% set existing_answer = answer %}
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <div class="choices">
+                        <div class="choice-button">
+                            <input type="radio" 
+                                   id="q{{ question.id }}_yes" 
+                                   name="question_{{ question.id }}" 
+                                   value="Yes" 
+                                   {% if existing_answer and existing_answer.choice == 'Yes' %}checked{% endif %}
+                                   required>
+                            <label for="q{{ question.id }}_yes">Yes</label>
+                        </div>
+                        
+                        <div class="choice-button">
+                            <input type="radio" 
+                                   id="q{{ question.id }}_no" 
+                                   name="question_{{ question.id }}" 
+                                   value="No" 
+                                   {% if existing_answer and existing_answer.choice == 'No' %}checked{% endif %}
+                                   required>
+                            <label for="q{{ question.id }}_no">No</label>
+                        </div>
+                        
+                        <div class="choice-button">
+                            <input type="radio" 
+                                   id="q{{ question.id }}_abstain" 
+                                   name="question_{{ question.id }}" 
+                                   value="Abstain" 
+                                   {% if existing_answer and existing_answer.choice == 'Abstain' %}checked{% endif %}
+                                   required>
+                            <label for="q{{ question.id }}_abstain">Abstain</label>
+                        </div>
+                    </div>
+                    
+                    <label class="elaboration-label" id="elab-label-{{ question.id }}">Elaboration (optional):</label>
+                    <div id="reasoning-hint-{{ question.id }}"
+                         class="reasoning-hint"
+                         style="display:none;">
+                        If you voted No or Abstain, sharing your reasoning helps reach consensus.
+                    </div>
+                    <textarea name="elaboration_{{ question.id }}"
+                              rows="3"
+                              placeholder="Please explain your reasoning...">{% if existing_answer and existing_answer.elaboration %}{{ existing_answer.elaboration }}{% endif %}</textarea>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Navigation -->
+        <div class="navigation-container">
+            <!-- Save and Continue Later -->
+            <div class="save-section">
+                <h4>Save and Continue Later</h4>
+                <p>Enter your email and we'll send you a link to return to this exact point anytime.</p>
+                {% if save_error %}
+                    <div class="save-error-box">{{ save_error }}</div>
+                {% endif %}
+                <input type="email"
+                       name="email"
+                       class="email-input"
+                       placeholder="your.email@example.com"
+                       value="{{ saved_email }}">
+                <button type="submit" name="action" value="save" class="btn btn-save" style="width: 100%;" formnovalidate>
+                    Save and Continue Later
+                </button>
+            </div>
+            
+            <!-- Navigation Buttons -->
+            <div class="button-row">
+                {% if section_num > 1 %}
+                    <button type="submit" name="action" value="previous" class="btn btn-secondary">
+                        ← Previous Section
+                    </button>
+                {% else %}
+                    <div style="flex: 1;"></div>
+                {% endif %}
+                
+                {% if section_num < total_sections %}
+                    <button type="submit" name="action" value="next" class="btn btn-primary">
+                        Next Section →
+                    </button>
+                {% else %}
+                    <button type="submit" name="action" value="submit" class="btn btn-success">
+                        ✓ Submit Survey
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </form>
+    <script>
+        // Show/hide reasoning hint + update label based on choice selection
+        function updateReasoningHint(radio) {
+            var id = radio.name.replace('question_', '');
+            var hint  = document.getElementById('reasoning-hint-' + id);
+            var label = document.getElementById('elab-label-' + id);
+            var needsReason = (radio.value === 'No' || radio.value === 'Abstain');
+            if (hint)  hint.style.display  = needsReason ? 'block' : 'none';
+            if (label) label.textContent   = needsReason
+                ? 'Please share your reasoning (optional):'
+                : 'Elaboration (optional):';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('input[type="radio"]').forEach(function(radio) {
+                // Wire up change listener
+                radio.addEventListener('change', function() { updateReasoningHint(this); });
+                // Apply to any already-checked radios (pre-filled from saved answers)
+                if (radio.checked) updateReasoningHint(radio);
+            });
+        });
+
+        function copyResumeLink() {
+            var input = document.getElementById('resumeLinkInput');
+            var btn = document.getElementById('copyResumeLinkBtn');
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(input.value).then(function() {
+                    btn.textContent = 'Copied!';
+                    setTimeout(function() { btn.textContent = 'Copy Link'; }, 2000);
+                });
+            } else {
+                input.select();
+                document.execCommand('copy');
+                btn.textContent = 'Copied!';
+                setTimeout(function() { btn.textContent = 'Copy Link'; }, 2000);
+            }
+        }
+    </script>
+</body>
+</html>

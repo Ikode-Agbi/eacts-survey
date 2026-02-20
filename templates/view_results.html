@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Results: {{ survey.title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body { background: #f5f5f5; }
+
+        /* ── top bar ── */
+        .results-header {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 6px 20px rgba(0,0,0,0.06);
+            padding: 24px 30px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .results-header h1 { margin: 0; font-size: 22px; }
+        .results-header .subtitle { color: #666; font-size: 14px; margin-top: 4px; }
+
+        /* ── summary boxes ── */
+        .summary-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .summary-box {
+            flex: 1;
+            min-width: 140px;
+            background: white;
+            border-radius: 12px;
+            padding: 22px 20px;
+            text-align: center;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+        }
+        .summary-box.total  { border-top: 4px solid #0066cc; }
+        .summary-box.passed { border-top: 4px solid #4caf50; }
+        .summary-box.failed { border-top: 4px solid #ff6b6b; }
+        .summary-number { font-size: 48px; font-weight: 700; color: #2c3e50; line-height: 1; margin: 8px 0 4px; }
+        .summary-label  { font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* ── filter bar ── */
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+            align-items: center;
+        }
+        .filter-bar span { font-size: 13px; color: #666; margin-right: 4px; }
+        .filter-btn {
+            padding: 6px 16px;
+            border: 2px solid #ddd;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            transition: all 0.15s;
+        }
+        .filter-btn:hover { border-color: #0066cc; color: #0066cc; }
+        .filter-btn.active { background: #0066cc; border-color: #0066cc; color: white; }
+        .filter-btn.active.passed-btn { background: #4caf50; border-color: #4caf50; }
+        .filter-btn.active.failed-btn { background: #ff6b6b; border-color: #ff6b6b; }
+
+        /* ── stats table card ── */
+        .table-card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 6px 20px rgba(0,0,0,0.06);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .table-card table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .table-card th {
+            background: #1b3a5c;
+            color: white;
+            padding: 13px 14px;
+            text-align: left;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+        .table-card td { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; }
+        .table-card tr:last-child td { border-bottom: none; }
+        .table-card tr.passed-row td { background: #f6fef7; }
+        .table-card tr.failed-row td  { background: #fff8f6; }
+        .table-card tr:hover td { filter: brightness(0.97); }
+
+        .vote-count { text-align: center; font-weight: 600; }
+        .pct-cell   { text-align: center; font-size: 17px; font-weight: 700; }
+
+        /* ── elaboration cards ── */
+        .section-heading {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1b3a5c;
+            margin: 28px 0 12px;
+            padding-bottom: 6px;
+            border-bottom: 2px solid #e0e8f4;
+        }
+        .elab-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+            padding: 18px 20px;
+            margin-bottom: 12px;
+        }
+        .elab-card .q-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .elab-comment {
+            background: #f7faff;
+            border-left: 3px solid #0066cc;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            border-radius: 0 6px 6px 0;
+        }
+        .elab-comment .choice-tag {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-bottom: 6px;
+            background: #e8f0fe;
+            color: #1b3a5c;
+        }
+        .elab-comment .choice-tag.no     { background: #fde8e8; color: #c0392b; }
+        .elab-comment .choice-tag.abstain{ background: #fef3e2; color: #856404; }
+        .elab-comment p { margin: 4px 0 6px; font-size: 14px; color: #333; }
+        .elab-comment small { color: #aaa; font-size: 12px; }
+
+        .no-comments-msg { color: #888; font-style: italic; font-size: 14px; padding: 10px 0; }
+    </style>
+</head>
+<body>
+<div class="page-container">
+
+    <!-- Header -->
+    <div class="results-header">
+        <div>
+            <h1>{{ survey.title }}</h1>
+            <div class="subtitle">Results &amp; Statistics</div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <a href="/admin" class="btn btn-secondary">← Dashboard</a>
+            <a href="{{ url_for('admin.export_results', survey_id=survey.id) }}" class="btn btn-success">Export to Excel</a>
+        </div>
+    </div>
+
+    <!-- Summary boxes -->
+    <div class="summary-row">
+        <div class="summary-box total">
+            <div class="summary-label">Total Responses</div>
+            <div class="summary-number">{{ total_responses }}</div>
+        </div>
+        <div class="summary-box passed">
+            <div class="summary-label">Questions Passing (≥75%)</div>
+            <div class="summary-number">{{ passed_count }}</div>
+        </div>
+        <div class="summary-box failed">
+            <div class="summary-label">Not Passing Threshold</div>
+            <div class="summary-number">{{ failed_count }}</div>
+        </div>
+    </div>
+
+    {% if total_responses == 0 %}
+        <div class="card" style="text-align:center; padding:40px;">
+            <h3 style="color:#888;">No responses yet</h3>
+            <p>Share this link with participants:</p>
+            <code style="background:#f4f4f4; padding:8px 14px; border-radius:6px; font-size:13px;">
+                {{ url_for('survey.take_survey', survey_id=survey.id, _external=True) }}
+            </code>
+        </div>
+    {% else %}
+
+        <!-- Filter bar -->
+        <div class="filter-bar">
+            <span>Filter:</span>
+            <button class="filter-btn active" id="filter-all"    onclick="filterResults('all')">All</button>
+            <button class="filter-btn passed-btn" id="filter-passed" onclick="filterResults('passed')">✓ Passed</button>
+            <button class="filter-btn failed-btn" id="filter-failed" onclick="filterResults('failed')">✗ Not Passed</button>
+        </div>
+
+        <!-- Stats table -->
+        <div class="table-card">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width:40px;">Q#</th>
+                        <th>Question</th>
+                        <th style="width:55px; text-align:center;">Yes</th>
+                        <th style="width:55px; text-align:center;">No</th>
+                        <th style="width:65px; text-align:center;">Abstain</th>
+                        <th style="width:70px; text-align:center;">Yes %</th>
+                        <th style="width:110px;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in stats %}
+                        <tr class="{% if stat.meets_threshold %}passed-row{% else %}failed-row{% endif %}"
+                            data-status="{% if stat.meets_threshold %}passed{% else %}failed{% endif %}">
+                            <td>{{ stat.question_number }}</td>
+                            <td>{{ stat.question_text }}</td>
+                            <td class="vote-count">{{ stat.yes_count }}</td>
+                            <td class="vote-count">{{ stat.no_count }}</td>
+                            <td class="vote-count">{{ stat.abstain_count }}</td>
+                            <td class="pct-cell">{{ stat.yes_percentage }}%</td>
+                            <td>
+                                {% if stat.meets_threshold %}
+                                    <span class="badge badge-passed">✓ Passed</span>
+                                {% else %}
+                                    <span class="badge badge-failed">✗ Not Passed</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Comments & Elaborations (only questions that have comments) -->
+        <h2 style="margin:32px 0 4px;">Comments &amp; Elaborations</h2>
+
+        {% set ns = namespace(total_comments=0) %}
+        {% for section_data in sections_with_elaborations %}
+            {% for q in section_data.questions %}
+                {% set ns.total_comments = ns.total_comments + q.elaborations|length %}
+            {% endfor %}
+        {% endfor %}
+
+        {% if ns.total_comments == 0 %}
+            <p class="no-comments-msg">No comments have been submitted yet.</p>
+        {% else %}
+            {% for section_data in sections_with_elaborations %}
+                {% set ns2 = namespace(section_comments=0) %}
+                {% for q in section_data.questions %}
+                    {% set ns2.section_comments = ns2.section_comments + q.elaborations|length %}
+                {% endfor %}
+
+                {% if ns2.section_comments > 0 %}
+                    <div class="section-heading">{{ section_data.section_title }}</div>
+
+                    {% for question_data in section_data.questions %}
+                        {% if question_data.elaborations|length > 0 %}
+                        <div class="elab-card">
+                            <div class="q-title">Q{{ question_data.question_number }}: {{ question_data.question_text }}</div>
+                            {% for elab in question_data.elaborations %}
+                                <div class="elab-comment">
+                                    <span class="choice-tag {% if elab.choice == 'No' %}no{% elif elab.choice == 'Abstain' %}abstain{% endif %}">
+                                        {{ elab.choice }}
+                                    </span>
+                                    <p>{{ elab.elaboration }}</p>
+                                    <small>{{ elab.submitted_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    {% endfor %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+
+    {% endif %}
+
+</div>
+
+<script>
+    function filterResults(status) {
+        document.querySelectorAll('tbody tr[data-status]').forEach(function(row) {
+            row.style.display = (status === 'all' || row.dataset.status === status) ? '' : 'none';
+        });
+        document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
+        document.getElementById('filter-' + status).classList.add('active');
+    }
+</script>
+</body>
+</html>

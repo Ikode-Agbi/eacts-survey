@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Survey Manually</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 3px; }
+        .section-container { background: #f5f5f5; padding: 20px; margin: 20px 0; border-radius: 5px; }
+        .question-box { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .btn { background: #0066cc; color: white; padding: 10px 20px; border: none; border-radius: 3px; cursor: pointer; }
+        .btn:hover { background: #0052a3; }
+        .btn-secondary { background: #6c757d; }
+        .btn-danger { background: #dc3545; }
+        .remove-btn { float: right; background: #dc3545; color: white; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Create Survey Manually</h1>
+    <a href="/admin">← Back to Dashboard</a>
+    
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div style="padding: 15px; margin: 20px 0; border-radius: 5px; background-color: {% if category == 'error' %}#f8d7da{% else %}#d4edda{% endif %};">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    
+    <form method="POST" id="surveyForm">
+        <div class="form-group">
+            <label>Survey Title *</label>
+            <input type="text" name="title" required placeholder="e.g., EACTS Consensus 2026">
+        </div>
+        
+        <div class="form-group">
+            <label>Description (optional)</label>
+            <textarea name="description" rows="3" placeholder="Brief description"></textarea>
+        </div>
+        
+        <hr>
+        
+        <h2>Sections</h2>
+        <p>Organize your questions into sections (like pages). Each section can have a title and description.</p>
+        
+        <div id="sectionsContainer">
+            <div class="section-container" id="section-1">
+                <h3>Section 1</h3>
+                <div class="form-group">
+                    <label>Section Title *</label>
+                    <input type="text" name="section_1_title" required placeholder="e.g., Preoperative Assessment">
+                </div>
+                <div class="form-group">
+                    <label>Section Description (optional)</label>
+                    <textarea name="section_1_description" rows="2" placeholder="Instructions for this section"></textarea>
+                </div>
+                <h4>Questions</h4>
+                <div id="section-1-questions">
+                    <div class="question-box">
+                        <input type="text" name="section_1_question_1" required placeholder="Question 1">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addQuestion(1)">+ Add Question to Section 1</button>
+            </div>
+        </div>
+        
+        <button type="button" class="btn" onclick="addSection()">+ Add Another Section</button>
+        
+        <hr style="margin: 30px 0;">
+        
+        <button type="submit" class="btn">Create Survey</button>
+        <a href="/admin" style="margin-left: 10px;">Cancel</a>
+    </form>
+    
+    <script>
+        var sectionCount = 1;
+        var questionCounts = {1: 1};
+        
+        function addSection() {
+            sectionCount++;
+            questionCounts[sectionCount] = 1;
+            
+            var container = document.getElementById('sectionsContainer');
+            var sectionDiv = document.createElement('div');
+            sectionDiv.className = 'section-container';
+            sectionDiv.id = 'section-' + sectionCount;
+            
+            sectionDiv.innerHTML = `
+                <button type="button" class="remove-btn" onclick="removeSection(${sectionCount})">Remove Section</button>
+                <h3>Section ${sectionCount}</h3>
+                <div class="form-group">
+                    <label>Section Title *</label>
+                    <input type="text" name="section_${sectionCount}_title" required placeholder="e.g., Intraoperative Management">
+                </div>
+                <div class="form-group">
+                    <label>Section Description (optional)</label>
+                    <textarea name="section_${sectionCount}_description" rows="2" placeholder="Instructions for this section"></textarea>
+                </div>
+                <h4>Questions</h4>
+                <div id="section-${sectionCount}-questions">
+                    <div class="question-box">
+                        <input type="text" name="section_${sectionCount}_question_1" required placeholder="Question 1">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-secondary" onclick="addQuestion(${sectionCount})">+ Add Question to Section ${sectionCount}</button>
+            `;
+            
+            container.appendChild(sectionDiv);
+        }
+        
+        function addQuestion(sectionNum) {
+            questionCounts[sectionNum]++;
+            var qNum = questionCounts[sectionNum];
+            
+            var container = document.getElementById('section-' + sectionNum + '-questions');
+            var questionDiv = document.createElement('div');
+            questionDiv.className = 'question-box';
+            questionDiv.id = 'section-' + sectionNum + '-question-' + qNum;
+            
+            questionDiv.innerHTML = `
+                <button type="button" class="remove-btn" onclick="removeQuestion(${sectionNum}, ${qNum})">Remove</button>
+                <input type="text" name="section_${sectionNum}_question_${qNum}" required placeholder="Question ${qNum}">
+            `;
+            
+            container.appendChild(questionDiv);
+        }
+        
+        function removeSection(sectionNum) {
+            document.getElementById('section-' + sectionNum).remove();
+        }
+        
+        function removeQuestion(sectionNum, questionNum) {
+            document.getElementById('section-' + sectionNum + '-question-' + questionNum).remove();
+        }
+    </script>
+</body>
+</html>

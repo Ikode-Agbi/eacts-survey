@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Survey</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        .header { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; }
+        input[type="text"], textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .section-container { background: white; padding: 25px; margin-bottom: 20px; border-radius: 8px; border-left: 4px solid #0066cc; }
+        .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .question-item { background: #f9f9f9; padding: 15px; margin-bottom: 10px; border-radius: 5px; position: relative; }
+        .question-controls { position: absolute; top: 10px; right: 10px; display: flex; gap: 5px; }
+        .btn { background: #0066cc; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn:hover { background: #0052a3; }
+        .btn-secondary { background: #6c757d; }
+        .btn-danger { background: #dc3545; }
+        .btn-small { padding: 5px 10px; font-size: 12px; }
+        .insert-section-btn { width: 100%; padding: 15px; margin: 10px 0; background: #e3f2fd; border: 2px dashed #0066cc; color: #0066cc; cursor: pointer; border-radius: 5px; font-weight: bold; text-align: center; }
+        .insert-section-btn:hover { background: #bbdefb; }
+        .save-bar { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 20px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); text-align: center; z-index: 1000; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Edit Survey: {{ survey.title }}</h1>
+        <a href="/admin">← Back to Dashboard</a>
+        <p style="color: #666; margin-top: 10px;">Click "Insert Section Break" buttons to organize questions into sections</p>
+    </div>
+    
+    <form method="POST" action="{{ url_for('admin.update_survey', survey_id=survey.id) }}" id="editForm">
+       <div class="survey-info-container" style="background: white; padding: 25px; margin-bottom: 20px; border-radius: 8px; border-left: 4px solid #4caf50;">
+            <h3>Survey Information</h3>
+            <div class="form-group">
+                <label>Survey Title</label>
+                <input type="text" name="title" value="{{ survey.title }}" required>
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea name="description" rows="3">{{ survey.description or '' }}</textarea>
+            </div>
+        </div>
+        
+        <div id="sectionsContainer">
+            {% for section in sections %}
+                <div class="section-container" data-section-index="{{ loop.index }}">
+                    <div class="section-header">
+                        <h3>Section {{ loop.index }}</h3>
+                        <button type="button" class="btn btn-danger btn-small" onclick="removeSection(this)">Remove Section</button>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Section Title</label>
+                        <input type="text" class="section-title" value="{{ section.title }}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Section Description</label>
+                        <textarea class="section-description" rows="2">{{ section.description or '' }}</textarea>
+                    </div>
+                    
+                    <h4>Questions</h4>
+                    <div class="questions-list">
+                        {% for question in section.questions|sort(attribute='question_number') %}
+                            <div class="question-item">
+                                <div class="question-controls">
+                                    <button type="button" class="btn btn-danger btn-small" onclick="removeQuestion(this)">Delete</button>
+                                </div>
+                                <label>Question {{ loop.index }}</label>
+                                <input type="text" class="question-text" value="{{ question.question_text }}" required>
+                            </div>
+                            
+                            <button type="button" class="insert-section-btn" onclick="insertSectionBreak(this)">
+                                ➕ Insert Section Break Here
+                            </button>
+                        {% endfor %}
+                    </div>
+                    
+                    <button type="button" class="btn btn-secondary" onclick="addQuestion(this)">+ Add Question to This Section</button>
+                </div>
+            {% endfor %}
+        </div>
+        
+        <button type="button" class="btn" onclick="addSection()">+ Add New Section at End</button>
+        
+        <div class="save-bar">
+            <button type="submit" class="btn" style="font-size: 18px; padding: 15px 40px;">Save Changes</button>
+            <a href="/admin" style="margin-left: 20px;">Cancel</a>
+        </div>
+    </form>
+    
+    <div style="height: 100px;"></div>
+    
+    <script>
+    function renumberAll() {
+        var sections = document.querySelectorAll('.section-container');
+        
+        // Start from index 0 for sections
+        sections.forEach(function(section, index) {
+            var sectionNumber = index + 1;  // First section = 1
+            
+            // Update section title in header
+            section.setAttribute('data-section-index', sectionNumber);
+            var headerTitle = section.querySelector('.section-header h3');
+            if (headerTitle) {
+                headerTitle.textContent = 'Section ' + sectionNumber;
+            }
+            
+            // Update form field names
+            var titleInput = section.querySelector('.section-title');
+            var descInput = section.querySelector('.section-description');
+            
+            if (titleInput) titleInput.name = 'section_' + sectionNumber + '_title';
+            if (descInput) descInput.name = 'section_' + sectionNumber + '_description';
+            
+            // Renumber questions - START FROM 1 for each section
+            var questions = section.querySelectorAll('.question-item');
+            questions.forEach(function(question, qIndex) {
+                var questionNumber = qIndex + 1;  // First question = 1
+                
+                var label = question.querySelector('label');
+                var input = question.querySelector('.question-text');
+                
+                if (label) {
+                    label.textContent = 'Question ' + questionNumber;
+                }
+                if (input) {
+                    input.name = 'section_' + sectionNumber + '_question_' + questionNumber;
+                }
+            });
+        });
+    }
+    
+    function insertSectionBreak(button) {
+        var currentSection = button.closest('.section-container');
+        var questionItem = button.previousElementSibling;
+        
+        var newSection = document.createElement('div');
+        newSection.className = 'section-container';
+        
+        newSection.innerHTML = `
+            <div class="section-header">
+                <h3>Section X</h3>
+                <button type="button" class="btn btn-danger btn-small" onclick="removeSection(this)">Remove Section</button>
+            </div>
+            <div class="form-group">
+                <label>Section Title</label>
+                <input type="text" class="section-title" value="New Section" required>
+            </div>
+            <div class="form-group">
+                <label>Section Description</label>
+                <textarea class="section-description" rows="2"></textarea>
+            </div>
+            <h4>Questions</h4>
+            <div class="questions-list"></div>
+            <button type="button" class="btn btn-secondary" onclick="addQuestion(this)">+ Add Question to This Section</button>
+        `;
+        
+        currentSection.parentNode.insertBefore(newSection, currentSection.nextSibling);
+        
+        var newQuestionsList = newSection.querySelector('.questions-list');
+        var questionsToMove = [];
+        var foundBreak = false;
+        
+        var allQuestions = currentSection.querySelectorAll('.question-item');
+        var allBreaks = currentSection.querySelectorAll('.insert-section-btn');
+        
+        allQuestions.forEach(function(q, index) {
+            if (foundBreak) {
+                questionsToMove.push({
+                    question: q,
+                    breakBtn: allBreaks[index]
+                });
+            }
+            if (q === questionItem) {
+                foundBreak = true;
+            }
+        });
+        
+        questionsToMove.forEach(function(item) {
+            newQuestionsList.appendChild(item.question);
+            newQuestionsList.appendChild(item.breakBtn);
+        });
+        
+        button.remove();
+        renumberAll();
+    }
+    
+    function addSection() {
+        var container = document.getElementById('sectionsContainer');
+        var newSection = document.createElement('div');
+        newSection.className = 'section-container';
+        
+        newSection.innerHTML = `
+            <div class="section-header">
+                <h3>Section X</h3>
+                <button type="button" class="btn btn-danger btn-small" onclick="removeSection(this)">Remove Section</button>
+            </div>
+            <div class="form-group">
+                <label>Section Title</label>
+                <input type="text" class="section-title" value="New Section" required>
+            </div>
+            <div class="form-group">
+                <label>Section Description</label>
+                <textarea class="section-description" rows="2"></textarea>
+            </div>
+            <h4>Questions</h4>
+            <div class="questions-list"></div>
+            <button type="button" class="btn btn-secondary" onclick="addQuestion(this)">+ Add Question to This Section</button>
+        `;
+        
+        container.appendChild(newSection);
+        renumberAll();
+    }
+    
+    function addQuestion(button) {
+        var section = button.closest('.section-container');
+        var questionsList = section.querySelector('.questions-list');
+        
+        var questionDiv = document.createElement('div');
+        questionDiv.className = 'question-item';
+        
+        questionDiv.innerHTML = `
+            <div class="question-controls">
+                <button type="button" class="btn btn-danger btn-small" onclick="removeQuestion(this)">Delete</button>
+            </div>
+            <label>Question X</label>
+            <input type="text" class="question-text" required>
+        `;
+        
+        var breakBtn = document.createElement('button');
+        breakBtn.type = 'button';
+        breakBtn.className = 'insert-section-btn';
+        breakBtn.textContent = '➕ Insert Section Break Here';
+        breakBtn.onclick = function() { insertSectionBreak(this); };
+        
+        questionsList.appendChild(questionDiv);
+        questionsList.appendChild(breakBtn);
+        
+        renumberAll();
+    }
+    
+    function removeSection(button) {
+        if (confirm('Remove this entire section and all its questions?')) {
+            button.closest('.section-container').remove();
+            renumberAll();
+        }
+    }
+    
+    function removeQuestion(button) {
+        var questionItem = button.closest('.question-item');
+        var breakBtn = questionItem.nextElementSibling;
+        
+        questionItem.remove();
+        if (breakBtn && breakBtn.classList.contains('insert-section-btn')) {
+            breakBtn.remove();
+        }
+        
+        renumberAll();
+    }
+    
+    // Run when page loads
+    renumberAll();
+</script>
