@@ -33,8 +33,11 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 6px 20px rgba(0,0,0,0.06);
-            overflow: hidden;
+            overflow: visible;
         }
+        /* Round the thead corners manually so overflow:visible doesn't expose sharp corners */
+        .table-card .data-table thead th:first-child { border-radius: 12px 0 0 0; }
+        .table-card .data-table thead th:last-child  { border-radius: 0 12px 0 0; }
 
         /* override data-table header for a fresher look */
         .table-card .data-table th {
@@ -49,6 +52,30 @@
 
         /* ── Responsive Responses / Created cell ── */
         .meta-cell { color: #666; font-size: 13px; }
+
+        /* ── export dropdown (dashboard) ── */
+        .export-dropdown-sm { position: relative; display: inline-block; }
+        .export-dropdown-sm .dropdown-menu-sm {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 4px);
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            min-width: 180px;
+            z-index: 200;
+            overflow: hidden;
+        }
+        .export-dropdown-sm.open .dropdown-menu-sm { display: block; }
+        .export-dropdown-sm .dropdown-menu-sm a {
+            display: block;
+            padding: 9px 14px;
+            color: #333;
+            text-decoration: none;
+            font-size: 13px;
+        }
+        .export-dropdown-sm .dropdown-menu-sm a:hover { background: #f5f5f5; }
     </style>
 </head>
 <body>
@@ -122,8 +149,13 @@
                                        class="btn btn-sm btn-secondary">Preview</a>
 
                                     {# Row 2 #}
-                                    <a href="{{ url_for('admin.export_results', survey_id=survey.id) }}"
-                                       class="btn btn-sm btn-success">Export</a>
+                                    <div class="export-dropdown-sm">
+                                        <button class="btn btn-sm btn-success" onclick="toggleExport(event, this)">Export &#9660;</button>
+                                        <div class="dropdown-menu-sm">
+                                            <a href="{{ url_for('admin.export_excel', survey_id=survey.id) }}">&#128202; Export to Excel</a>
+                                            <a href="{{ url_for('admin.export_pdf', survey_id=survey.id) }}">&#128196; Export to PDF</a>
+                                        </div>
+                                    </div>
                                     <button data-url="{{ url_for('survey.take_survey', survey_id=survey.id, _external=True) }}"
                                             onclick="copyLink(this)"
                                             class="btn btn-sm btn-primary">Copy Link</button>
@@ -151,6 +183,19 @@
     </div>
 
     <script>
+        function toggleExport(e, btn) {
+            e.stopPropagation();
+            var dropdown = btn.closest('.export-dropdown-sm');
+            var isOpen = dropdown.classList.contains('open');
+            // Close any other open dropdowns first
+            document.querySelectorAll('.export-dropdown-sm.open').forEach(function(d) { d.classList.remove('open'); });
+            if (!isOpen) dropdown.classList.add('open');
+        }
+
+        document.addEventListener('click', function() {
+            document.querySelectorAll('.export-dropdown-sm.open').forEach(function(d) { d.classList.remove('open'); });
+        });
+
         function copyLink(btn) {
             var url = btn.dataset.url;
             var orig = btn.textContent.trim();

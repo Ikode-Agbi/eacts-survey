@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(lsof:*)",
-      "Bash(/Users/kodez/Desktop/Guidelines_survey/venv/bin/python:*)"
+      "Bash(/Users/kodez/Desktop/Guidelines_survey/venv/bin/python:*)",
+      "Bash(xattr:*)"
     ]
   }
 }

@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from database import db
 from data_tables.survey import Survey
 from data_tables.question import Question
+from data_tables.response import Response
 from utils.excel_upload import process_excel_file, check_if_excel_file
 from werkzeug.utils import secure_filename
 import os
@@ -204,14 +205,53 @@ def view_results(survey_id):
             })
         
         sections_with_elaborations.append(section_data)
-    
-    return render_template('view_results.html', 
-                          survey=survey, 
+
+    return render_template('view_results.html',
+                          survey=survey,
                           stats=all_statistics,
                           total_responses=total_responses,
                           passed_count=passed_count,
                           failed_count=failed_count,
                           sections_with_elaborations=sections_with_elaborations)
+
+@admin_bp.route('/responses/<int:survey_id>')
+def view_responses(survey_id):
+    """Show all individual responses for a survey."""
+
+    survey = Survey.query.get_or_404(survey_id)
+
+    individual_responses = []
+    for resp in sorted(survey.responses, key=lambda r: r.submitted_at, reverse=True):
+        display_name = resp.email if resp.email else 'Anonymous'
+
+        resp_sections = []
+        for section in sorted(survey.sections, key=lambda s: s.section_number):
+            section_answers = []
+            for question in sorted(section.questions, key=lambda q: q.question_number):
+                answer = next((a for a in resp.answers if a.question_id == question.id), None)
+                section_answers.append({
+                    'question_number': question.question_number,
+                    'question_text':   question.question_text,
+                    'choice':          answer.choice if answer else '—',
+                    'elaboration':     answer.elaboration if answer else ''
+                })
+            resp_sections.append({
+                'section_title': section.title,
+                'answers': section_answers
+            })
+
+        individual_responses.append({
+            'id':           resp.id,
+            'name':         display_name,
+            'submitted_at': resp.submitted_at,
+            'is_complete':  resp.is_complete,
+            'sections':     resp_sections
+        })
+
+    return render_template('individual_responses.html',
+                           survey=survey,
+                           individual_responses=individual_responses)
+
 
 @admin_bp.route('/create-manual', methods=['GET', 'POST'])
 def create_manual_survey():
@@ -303,79 +343,268 @@ def create_manual_survey():
             return redirect(request.url)
         
 
-@admin_bp.route('/export/<int:survey_id>')
-def export_results(survey_id):
-    """Export survey results to Excel file."""
-    
+@admin_bp.route('/export-excel/<int:survey_id>')
+def export_excel(survey_id):
+    """Export survey results to Excel file (questions as rows)."""
+
     survey = Survey.query.get_or_404(survey_id)
-    
-    import pandas as pd
+
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
     from flask import send_file
     import io
-    
-    all_rows = []
-    
-    # Get all responses
-    for response in survey.responses:
-        row_data = {}
-        row_data['Response ID'] = response.id
-        row_data['Submitted At'] = response.submitted_at.strftime('%Y-%m-%d %H:%M:%S')
-        
-        # Get all answers
-        for answer in response.answers:
-            question = answer.question
-            section = question.section
-            
-            # Column name includes section
-            question_column = f'{section.title} - Q{question.question_number}: {question.question_text}'
-            row_data[question_column] = answer.choice
-            
-            if answer.elaboration and answer.elaboration.strip():
-                elaboration_column = f'{section.title} - Q{question.question_number} - Comment'
-                row_data[elaboration_column] = answer.elaboration
-        
-        all_rows.append(row_data)
-    
-    data_frame = pd.DataFrame(all_rows)
-    
-    # Create statistics sheet
-    stats_rows = []
-    all_questions = survey.get_all_questions()
-    
-    for question in all_questions:
-        question_stats = question.calculate_statistics()
-        
-        stats_row = {
-            'Section': question.section.title,
-            'Question Number': question_stats['question_number'],
-            'Question Text': question_stats['question_text'],
-            'Total Responses': question_stats['total_responses'],
-            'Yes Count': question_stats['yes_count'],
-            'No Count': question_stats['no_count'],
-            'Abstain Count': question_stats['abstain_count'],
-            'Yes Percentage': f"{question_stats['yes_percentage']}%",
-            'Meets 75% Threshold': 'YES' if question_stats['meets_threshold'] else 'NO'
-        }
-        
-        stats_rows.append(stats_row)
-    
-    stats_frame = pd.DataFrame(stats_rows)
-    
-    # Create Excel file
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'Results'
+
+    # Header row
+    headers = ['Q#', 'Section', 'Question Text', 'Total Responses',
+               'Yes %', 'No %', 'Abstain', 'Comments']
+    ws.append(headers)
+
+    # Style header row
+    header_fill = PatternFill(start_color='1B3A5C', end_color='1B3A5C', fill_type='solid')
+    header_font = Font(bold=True, color='FFFFFF')
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    # Data rows
+    for question in survey.get_all_questions():
+        stats = question.calculate_statistics()
+
+        # Calculate no percentage (same denominator as yes — excludes abstains)
+        total_yes_no = stats['yes_count'] + stats['no_count']
+        if total_yes_no > 0:
+            no_pct = round((stats['no_count'] / total_yes_no) * 100, 1)
+        else:
+            no_pct = 0.0
+
+        # Gather comments
+        comments = [
+            a.elaboration.strip()
+            for a in question.answers
+            if a.elaboration and a.elaboration.strip()
+        ]
+        comments_text = ' | '.join(comments) if comments else ''
+
+        ws.append([
+            stats['question_number'],
+            question.section.title,
+            stats['question_text'],
+            stats['total_responses'],
+            f"{stats['yes_percentage']}%",
+            f"{no_pct}%",
+            stats['abstain_count'],
+            comments_text,
+        ])
+
+    # Auto-fit column widths (approximate)
+    col_widths = [6, 18, 60, 16, 10, 10, 10, 60]
+    for i, width in enumerate(col_widths, start=1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+
+    # Wrap text on Question Text and Comments columns
+    for row in ws.iter_rows(min_row=2):
+        row[2].alignment = Alignment(wrap_text=True, vertical='top')  # Question Text
+        row[7].alignment = Alignment(wrap_text=True, vertical='top')  # Comments
+
     output = io.BytesIO()
-    
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        data_frame.to_excel(writer, sheet_name='Responses', index=False)
-        stats_frame.to_excel(writer, sheet_name='Statistics', index=False)
-    
+    wb.save(output)
     output.seek(0)
-    
+
     safe_title = survey.title.replace(' ', '_').replace('/', '_')
     filename = f'{safe_title}_Results.xlsx'
-    
+
     return send_file(
         output,
         mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=filename
+    )
+
+
+@admin_bp.route('/export-pdf/<int:survey_id>')
+def export_pdf(survey_id):
+    """Export survey results to a PDF report."""
+
+    survey = Survey.query.get_or_404(survey_id)
+
+    from flask import send_file
+    import io
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import cm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+
+    output = io.BytesIO()
+    doc = SimpleDocTemplate(
+        output,
+        pagesize=A4,
+        leftMargin=2 * cm,
+        rightMargin=2 * cm,
+        topMargin=2 * cm,
+        bottomMargin=2 * cm,
+    )
+
+    styles = getSampleStyleSheet()
+
+    style_title = ParagraphStyle(
+        'SurveyTitle',
+        parent=styles['Title'],
+        fontSize=20,
+        textColor=colors.HexColor('#1B3A5C'),
+        spaceAfter=6,
+    )
+    style_subtitle = ParagraphStyle(
+        'Subtitle',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.HexColor('#555555'),
+        spaceAfter=16,
+    )
+    style_section_fail = ParagraphStyle(
+        'SectionFail',
+        parent=styles['Heading1'],
+        fontSize=14,
+        textColor=colors.HexColor('#C0392B'),
+        spaceBefore=18,
+        spaceAfter=6,
+    )
+    style_section_pass = ParagraphStyle(
+        'SectionPass',
+        parent=styles['Heading1'],
+        fontSize=14,
+        textColor=colors.HexColor('#27AE60'),
+        spaceBefore=18,
+        spaceAfter=6,
+    )
+    style_question = ParagraphStyle(
+        'QuestionText',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.HexColor('#2C3E50'),
+        fontName='Helvetica-Bold',
+        spaceBefore=10,
+        spaceAfter=3,
+    )
+    style_stats = ParagraphStyle(
+        'StatsLine',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#444444'),
+        spaceAfter=4,
+        leftIndent=12,
+    )
+    style_comment_label = ParagraphStyle(
+        'CommentLabel',
+        parent=styles['Normal'],
+        fontSize=10,
+        fontName='Helvetica-Bold',
+        textColor=colors.HexColor('#555555'),
+        spaceBefore=4,
+        spaceAfter=2,
+        leftIndent=12,
+    )
+    style_comment = ParagraphStyle(
+        'Comment',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#333333'),
+        spaceAfter=3,
+        leftIndent=24,
+        bulletIndent=14,
+    )
+
+    # Collect question data
+    all_questions = survey.get_all_questions()
+    total_responses = len(survey.responses)
+
+    failed_questions = []
+    passed_questions = []
+
+    for question in all_questions:
+        stats = question.calculate_statistics()
+        total_yes_no = stats['yes_count'] + stats['no_count']
+        no_pct = round((stats['no_count'] / total_yes_no) * 100, 1) if total_yes_no > 0 else 0.0
+        comments = [
+            a.elaboration.strip()
+            for a in question.answers
+            if a.elaboration and a.elaboration.strip()
+        ]
+        entry = {
+            'number': stats['question_number'],
+            'text': stats['question_text'],
+            'total': stats['total_responses'],
+            'yes_pct': stats['yes_percentage'],
+            'no_pct': no_pct,
+            'abstain': stats['abstain_count'],
+            'comments': comments,
+        }
+        if stats['meets_threshold']:
+            passed_questions.append(entry)
+        else:
+            failed_questions.append(entry)
+
+    passed_count = len(passed_questions)
+    failed_count = len(failed_questions)
+
+    story = []
+
+    # Title
+    story.append(Paragraph(survey.title, style_title))
+    story.append(Paragraph(
+        f"Total Responses: {total_responses} &nbsp;&nbsp;|&nbsp;&nbsp; "
+        f"Passed: {passed_count} &nbsp;&nbsp;|&nbsp;&nbsp; Did Not Pass: {failed_count}",
+        style_subtitle
+    ))
+    story.append(HRFlowable(width='100%', thickness=1, color=colors.HexColor('#DDDDDD'), spaceAfter=10))
+
+    def add_questions(question_list):
+        for q in question_list:
+            story.append(Paragraph(
+                f"Q{q['number']}. {q['text']}",
+                style_question
+            ))
+            story.append(Paragraph(
+                f"Respondents: {q['total']} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"Yes: {q['yes_pct']}% &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"No: {q['no_pct']}% &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"Abstained: {q['abstain']}",
+                style_stats
+            ))
+            if q['comments']:
+                story.append(Paragraph('Comments:', style_comment_label))
+                for comment in q['comments']:
+                    # Escape any HTML special characters in comment text
+                    safe_comment = comment.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    story.append(Paragraph(f"\u2022 {safe_comment}", style_comment))
+            story.append(Spacer(1, 6))
+
+    # Did Not Pass section
+    if failed_questions:
+        story.append(Paragraph('DID NOT PASS', style_section_fail))
+        story.append(HRFlowable(width='100%', thickness=1, color=colors.HexColor('#E8A0A0'), spaceAfter=6))
+        add_questions(failed_questions)
+
+    # Passed section
+    if passed_questions:
+        story.append(Paragraph('PASSED', style_section_pass))
+        story.append(HRFlowable(width='100%', thickness=1, color=colors.HexColor('#A0D8AF'), spaceAfter=6))
+        add_questions(passed_questions)
+
+    doc.build(story)
+    output.seek(0)
+
+    safe_title = survey.title.replace(' ', '_').replace('/', '_')
+    filename = f'{safe_title}_Results.pdf'
+
+    return send_file(
+        output,
+        mimetype='application/pdf',
         as_attachment=True,
         download_name=filename
     )
@@ -426,6 +655,21 @@ def delete_survey(survey_id):
     
     # Step 5: Go back to admin dashboard
     return redirect(url_for('admin.dashboard'))
+
+@admin_bp.route('/delete-response/<int:response_id>', methods=['POST'])
+def delete_response(response_id):
+    """Delete a single response and its answers (cascade)."""
+    try:
+        resp = Response.query.get_or_404(response_id)
+        survey_id = resp.survey_id
+        db.session.delete(resp)
+        db.session.commit()
+        flash('Response deleted successfully', 'success')
+    except Exception as error:
+        db.session.rollback()
+        flash(f'Error deleting response: {str(error)}', 'error')
+    return redirect(url_for('admin.view_results', survey_id=survey_id))
+
 
 @admin_bp.route('/edit/<int:survey_id>')
 def edit_survey(survey_id):

@@ -1,0 +1,40 @@
+Features:
+- signed in by guidelines manager 
+- create new survey
+- list of surveys created 
+- upload excel of questions
+- survey link to send to user
+- each survey has a unique survey ID 
+- save and continue using survey code
+- stats for 76% threshold for yes/(yes+no) x 100
+
+tables :
+
+SURVEYS
+├── survey_id (unique)
+├── title
+├── created_date
+├── deadline
+└── status (draft/active/closed)
+
+QUESTIONS
+├── question_id
+├── survey_id (links to SURVEYS)
+├── question_text
+└── question_order
+
+ANSWERS
+├── response_id
+├── survey_id
+├── respondent_id (anonymous unique ID)
+├── question_id
+├── answer (yes/no/abstain)
+├── comment
+└── timestamp
+
+RESPONDENTS
+├── respondent_id (anonymous)
+├── survey_id
+├── email (optional, for save/resume)
+├── completion_status
+└── last_saved_question

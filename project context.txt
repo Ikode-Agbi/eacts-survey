@@ -1,0 +1,14 @@
+EACTS Survey System - Project Summary
+Project Overview
+Purpose: Custom survey management platform for EACTS (European Association for Cardio-Thoracic Surgery) to conduct consensus voting on clinical practice guidelines. Replaces Survey Monkey with a self-hosted solution.
+Core Requirements:
+
+Medical professionals vote Yes/No/Abstain on clinical questions
+75% consensus threshold calculation (Yes / (Yes + No) * 100 ≥ 75%)
+Optional elaboration/comments for each answer
+Multi-section surveys for organization
+Save & resume functionality via email
+Excel import/export capabilities
+Admin password protection
+
+

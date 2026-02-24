@@ -38,7 +38,8 @@
             text-align: center;
             box-shadow: 0 1px 4px rgba(0,0,0,0.08);
         }
-        .summary-box.total  { border-top: 4px solid #0066cc; }
+        .summary-box.total  { border-top: 4px solid #0066cc; cursor: pointer; transition: box-shadow 0.15s; }
+        .summary-box.total:hover { box-shadow: 0 2px 8px rgba(0,102,204,0.22); }
         .summary-box.passed { border-top: 4px solid #4caf50; }
         .summary-box.failed { border-top: 4px solid #ff6b6b; }
         .summary-number { font-size: 48px; font-weight: 700; color: #2c3e50; line-height: 1; margin: 8px 0 4px; }
@@ -144,10 +145,47 @@
         .elab-comment small { color: #aaa; font-size: 12px; }
 
         .no-comments-msg { color: #888; font-style: italic; font-size: 14px; padding: 10px 0; }
+
+        /* ── export dropdown ── */
+        .export-dropdown { position: relative; display: inline-block; }
+        .export-dropdown .dropdown-menu {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: calc(100% + 4px);
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+            min-width: 190px;
+            z-index: 200;
+            overflow: hidden;
+        }
+        .export-dropdown.open .dropdown-menu { display: block; }
+        .export-dropdown .dropdown-menu a {
+            display: block;
+            padding: 11px 16px;
+            color: #333;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .export-dropdown .dropdown-menu a:hover { background: #f5f5f5; }
+        .dropdown-toggle { cursor: pointer; }
     </style>
 </head>
 <body>
 <div class="page-container">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div style="padding:12px 16px; margin-bottom:12px; border-radius:8px;
+               {% if category == 'success' %}background:#e8f7ee; color:#2e7d52;{% else %}background:#fde8e8; color:#c0392b;{% endif %}
+               font-weight:600; font-size:14px;">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
 
     <!-- Header -->
     <div class="results-header">
@@ -155,18 +193,26 @@
             <h1>{{ survey.title }}</h1>
             <div class="subtitle">Results &amp; Statistics</div>
         </div>
-        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
             <a href="/admin" class="btn btn-secondary">← Dashboard</a>
-            <a href="{{ url_for('admin.export_results', survey_id=survey.id) }}" class="btn btn-success">Export to Excel</a>
+            <div class="export-dropdown" id="exportDropdown">
+                <button class="btn btn-success dropdown-toggle" onclick="toggleExportDropdown(event)">Export &#9660;</button>
+                <div class="dropdown-menu">
+                    <a href="{{ url_for('admin.export_excel', survey_id=survey.id) }}">&#128202; Export to Excel</a>
+                    <a href="{{ url_for('admin.export_pdf', survey_id=survey.id) }}">&#128196; Export to PDF</a>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Summary boxes -->
     <div class="summary-row">
+        <a href="{{ url_for('admin.view_responses', survey_id=survey.id) }}" style="text-decoration:none; flex:1; min-width:140px;">
         <div class="summary-box total">
             <div class="summary-label">Total Responses</div>
             <div class="summary-number">{{ total_responses }}</div>
         </div>
+        </a>
         <div class="summary-box passed">
             <div class="summary-label">Questions Passing (≥75%)</div>
             <div class="summary-number">{{ passed_count }}</div>
@@ -286,6 +332,16 @@
         document.querySelectorAll('.filter-btn').forEach(function(b) { b.classList.remove('active'); });
         document.getElementById('filter-' + status).classList.add('active');
     }
+
+    function toggleExportDropdown(e) {
+        e.stopPropagation();
+        document.getElementById('exportDropdown').classList.toggle('open');
+    }
+
+    document.addEventListener('click', function() {
+        document.getElementById('exportDropdown').classList.remove('open');
+    });
+
 </script>
 </body>
 </html>

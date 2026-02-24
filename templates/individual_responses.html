@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Responses: {{ survey.title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body { background: #f5f5f5; }
+
+        .page-header {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08), 0 6px 20px rgba(0,0,0,0.06);
+            padding: 24px 30px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .page-header h1 { margin: 0; font-size: 22px; }
+        .page-header .subtitle { color: #666; font-size: 14px; margin-top: 4px; }
+
+        /* filter bar */
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 14px;
+            align-items: center;
+        }
+        .filter-bar span { font-size: 13px; color: #666; margin-right: 4px; }
+        .filter-btn {
+            padding: 6px 16px;
+            border: 2px solid #ddd;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+            transition: all 0.15s;
+        }
+        .filter-btn:hover { border-color: #0066cc; color: #0066cc; }
+        .filter-btn.active { background: #0066cc; border-color: #0066cc; color: white; }
+        .filter-btn.active.complete-btn   { background: #4caf50; border-color: #4caf50; }
+        .filter-btn.active.incomplete-btn { background: #ff9800; border-color: #ff9800; }
+
+        .resp-count { font-size: 13px; color: #888; margin-left: 8px; }
+
+        /* response cards */
+        .resp-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .resp-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 18px;
+            flex-wrap: wrap;
+        }
+        .resp-id    { font-size: 12px; color: #aaa; min-width: 48px; }
+        .resp-name  { font-weight: 600; color: #2c3e50; flex: 1; min-width: 120px; }
+        .resp-date  { font-size: 13px; color: #666; min-width: 160px; }
+        .resp-actions { display: flex; gap: 8px; margin-left: auto; }
+
+        .badge-complete   { background: #e8f7ee; color: #2e7d52; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .badge-incomplete { background: #fff3e0; color: #b45309; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+
+        .resp-details {
+            display: none;
+            padding: 0 18px 18px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .resp-details.open { display: block; }
+
+        .resp-section-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1b3a5c;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 14px 0 8px;
+        }
+        .resp-answer-row {
+            display: flex;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #f5f5f5;
+            font-size: 13px;
+            align-items: flex-start;
+        }
+        .resp-answer-row:last-child { border-bottom: none; }
+        .resp-qnum  { min-width: 28px; color: #aaa; font-weight: 600; }
+        .resp-qtext { flex: 1; color: #444; }
+        .resp-choice { min-width: 64px; font-weight: 700; }
+        .resp-choice.yes     { color: #2e7d52; }
+        .resp-choice.no      { color: #c0392b; }
+        .resp-choice.abstain { color: #856404; }
+        .resp-elab  { font-size: 12px; color: #666; font-style: italic; margin-top: 2px; }
+
+        .no-responses-msg { color: #888; font-style: italic; font-size: 14px; padding: 40px; text-align: center; background: white; border-radius: 10px; }
+    </style>
+</head>
+<body>
+<div class="page-container">
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div style="padding:12px 16px; margin-bottom:12px; border-radius:8px;
+               {% if category == 'success' %}background:#e8f7ee; color:#2e7d52;{% else %}background:#fde8e8; color:#c0392b;{% endif %}
+               font-weight:600; font-size:14px;">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- Header -->
+    <div class="page-header">
+        <div>
+            <h1>{{ survey.title }}</h1>
+            <div class="subtitle">Individual Responses</div>
+        </div>
+        <a href="{{ url_for('admin.view_results', survey_id=survey.id) }}" class="btn btn-secondary">← Back to Results</a>
+    </div>
+
+    {% if individual_responses|length == 0 %}
+        <div class="no-responses-msg">No responses have been submitted yet.</div>
+    {% else %}
+
+        <div class="filter-bar">
+            <span>Filter:</span>
+            <button class="filter-btn active" id="filter-all"         onclick="filterResponses('all')">All</button>
+            <button class="filter-btn complete-btn"   id="filter-complete"   onclick="filterResponses('complete')">Complete</button>
+            <button class="filter-btn incomplete-btn" id="filter-incomplete" onclick="filterResponses('incomplete')">Incomplete</button>
+            <span class="resp-count">{{ individual_responses|length }} response{{ 's' if individual_responses|length != 1 }}</span>
+        </div>
+
+        {% for resp in individual_responses %}
+        <div class="resp-card" data-status="{{ 'complete' if resp.is_complete else 'incomplete' }}">
+            <div class="resp-card-header">
+                <span class="resp-id">#{{ resp.id }}</span>
+                <span class="resp-name">{{ resp.name }}</span>
+                <span class="resp-date">{{ resp.submitted_at.strftime('%-d %b %Y, %H:%M') }}</span>
+                {% if resp.is_complete %}
+                    <span class="badge-complete">Complete</span>
+                {% else %}
+                    <span class="badge-incomplete">Incomplete</span>
+                {% endif %}
+                <div class="resp-actions">
+                    <button class="btn btn-secondary btn-sm" onclick="toggleDetail({{ resp.id }}, this)">View Details</button>
+                    <form method="POST" action="{{ url_for('admin.delete_response', response_id=resp.id) }}"
+                          onsubmit="return confirm('Are you sure? This will permanently delete this response.');"
+                          style="display:inline;">
+                        <button type="submit" style="background:#e74c3c; color:white; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-weight:600; font-size:13px;">Delete</button>
+                    </form>
+                </div>
+            </div>
+            <div class="resp-details" id="detail-{{ resp.id }}">
+                {% for sec in resp.sections %}
+                    <div class="resp-section-title">{{ sec.section_title }}</div>
+                    {% for ans in sec.answers %}
+                    <div class="resp-answer-row">
+                        <span class="resp-qnum">Q{{ ans.question_number }}</span>
+                        <div class="resp-qtext">
+                            {{ ans.question_text }}
+                            {% if ans.elaboration %}
+                                <div class="resp-elab">"{{ ans.elaboration }}"</div>
+                            {% endif %}
+                        </div>
+                        <span class="resp-choice {{ ans.choice|lower }}">{{ ans.choice }}</span>
+                    </div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+
+    {% endif %}
+
+</div>
+
+<script>
+    function toggleDetail(id, btn) {
+        var detail = document.getElementById('detail-' + id);
+        var isOpen = detail.classList.toggle('open');
+        btn.textContent = isOpen ? 'Hide Details' : 'View Details';
+    }
+
+    function filterResponses(status) {
+        document.querySelectorAll('.resp-card').forEach(function(card) {
+            card.style.display = (status === 'all' || card.dataset.status === status) ? '' : 'none';
+        });
+        ['all', 'complete', 'incomplete'].forEach(function(s) {
+            document.getElementById('filter-' + s).classList.toggle('active', s === status);
+        });
+    }
+</script>
+</body>
+</html>
