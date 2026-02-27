@@ -222,7 +222,7 @@ def view_responses(survey_id):
 
     individual_responses = []
     for resp in sorted(survey.responses, key=lambda r: r.submitted_at, reverse=True):
-        display_name = resp.email if resp.email else 'Anonymous'
+        display_name = resp.participant_name or 'Anonymous'
 
         resp_sections = []
         for section in sorted(survey.sections, key=lambda s: s.section_number):
@@ -668,7 +668,7 @@ def delete_response(response_id):
     except Exception as error:
         db.session.rollback()
         flash(f'Error deleting response: {str(error)}', 'error')
-    return redirect(url_for('admin.view_results', survey_id=survey_id))
+    return redirect(url_for('admin.individual_responses', survey_id=survey_id))
 
 
 @admin_bp.route('/edit/<int:survey_id>')

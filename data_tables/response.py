@@ -13,8 +13,11 @@ class Response(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     survey_id = db.Column(db.Integer, db.ForeignKey('surveys.id'), nullable=False)
 
-      # Email for save & resume
+    # Email for save & resume
     email = db.Column(db.String(200))
+
+    # Participant name (collected on section 1, stored separately from answers)
+    participant_name = db.Column(db.String(200))
 
     # Unique token for resuming
     resume_token = db.Column(db.String(36), unique=True)

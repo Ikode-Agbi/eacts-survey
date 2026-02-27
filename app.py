@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, redirect
 from flask_mail import Mail
 import os
 from database import db
@@ -33,14 +33,11 @@ for folder in [database_folder, uploads_folder]:
     if not os.path.exists(folder):
         os.makedirs(folder)
 
+
 # home route
 @app.route('/')
 def home():
-    return """
-    <h1>EACTS Survey System</h1>
-    <p>System is running!</p>
-    <a href='/admin'>Go to Admin Dashboard</a>
-    """
+    return redirect('/admin/')
 
 # create database tables when app starts
 with app.app_context():

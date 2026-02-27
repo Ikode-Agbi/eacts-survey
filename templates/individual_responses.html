@@ -146,7 +146,7 @@
             <div class="resp-card-header">
                 <span class="resp-id">#{{ resp.id }}</span>
                 <span class="resp-name">{{ resp.name }}</span>
-                <span class="resp-date">{{ resp.submitted_at.strftime('%-d %b %Y, %H:%M') }}</span>
+                <span class="resp-date">{{ resp.submitted_at.strftime('%d %b %Y, %H:%M') }}</span>
                 {% if resp.is_complete %}
                     <span class="badge-complete">Complete</span>
                 {% else %}

@@ -68,34 +68,22 @@ def show_section(survey_id, section_num):
         action = request.form.get('action')
 
         if action == 'save':
-            email = request.form.get('email', '').strip()
-
-            if not email:
-                # Re-render same section with an error (no redirect — preserves form state)
-                return render_template('take_survey_section.html',
-                                       survey=survey,
-                                       section=current_section,
-                                       section_num=section_num,
-                                       total_sections=total_sections,
-                                       existing_response=existing_response,
-                                       saved_email='',
-                                       save_error='Please enter your email address to save your progress.')
-
-            # Create or update the response record
+            # Create response record if this is the first save
             if not existing_response:
-                existing_response = Response(survey_id=survey.id, email=email)
+                existing_response = Response(survey_id=survey.id)
                 existing_response.generate_resume_token()
                 db.session.add(existing_response)
-                db.session.commit()
+                db.session.flush()
                 session['resume_token'] = existing_response.resume_token
-                session['resume_email'] = email
-            else:
-                existing_response.email = email
-                session['resume_email'] = email
-                db.session.commit()
 
-            # Save whatever answers were filled in on this section
-            save_section_answers(survey, current_section, existing_response)
+            save_section_answers(current_section, existing_response)
+
+            if section_num == 1:
+                name = request.form.get('participant_name', '').strip()
+                if name:
+                    existing_response.participant_name = name
+
+            db.session.commit()
 
             # Resume link — encodes the current section so they land here when they return
             resume_link = url_for('survey.take_survey',
@@ -104,26 +92,38 @@ def show_section(survey_id, section_num):
                                   section=section_num,
                                   _external=True)
 
-            # Try to send email; returns True if it actually sent
-            email_sent = send_resume_email(email, survey.title, resume_link, section_num, total_sections)
-
             # Refresh so existing_response.answers reflects the just-saved answers
             db.session.refresh(existing_response)
 
-            # Re-render the SAME section with the save confirmation box
             return render_template('take_survey_section.html',
                                    survey=survey,
                                    section=current_section,
                                    section_num=section_num,
                                    total_sections=total_sections,
                                    existing_response=existing_response,
-                                   saved_email=email,
-                                   resume_link=resume_link,
-                                   saved_to_email=email if email_sent else None)
+                                   resume_link=resume_link)
 
         else:
-            # next / previous / submit — save answers first, then navigate
-            save_section_answers(survey, current_section, existing_response)
+            # next / previous / submit
+            # Ensure a response record exists before saving answers
+            if not existing_response:
+                existing_response = Response(survey_id=survey.id)
+                existing_response.generate_resume_token()
+                db.session.add(existing_response)
+                db.session.flush()
+                session['resume_token'] = existing_response.resume_token
+
+            save_section_answers(current_section, existing_response)
+
+            if section_num == 1:
+                name = request.form.get('participant_name', '').strip()
+                if name:
+                    existing_response.participant_name = name
+
+            if action == 'submit':
+                existing_response.is_complete = True
+
+            db.session.commit()
 
             if action == 'next':
                 return redirect(url_for('survey.show_section',
@@ -136,17 +136,8 @@ def show_section(survey_id, section_num):
                                         section_num=section_num - 1))
 
             elif action == 'submit':
-                if not existing_response:
-                    existing_response = Response(survey_id=survey.id, is_complete=True)
-                    db.session.add(existing_response)
-                else:
-                    existing_response.is_complete = True
-
-                db.session.commit()
-
                 session.pop('resume_token', None)
                 session.pop('resume_email', None)
-
                 return redirect(url_for('survey.thank_you'))
 
     # ── GET ───────────────────────────────────────────────────────────────────
@@ -159,15 +150,8 @@ def show_section(survey_id, section_num):
                            saved_email=session.get('resume_email', ''))
 
 
-def save_section_answers(survey, section, existing_response):
-    """Save answers for the current section."""
-
-    if not existing_response:
-        existing_response = Response(survey_id=survey.id)
-        existing_response.generate_resume_token()
-        db.session.add(existing_response)
-        db.session.flush()
-        session['resume_token'] = existing_response.resume_token
+def save_section_answers(section, existing_response):
+    """Save answers for the current section. Caller is responsible for committing."""
 
     # Delete old answers for this section so we can replace them
     question_ids = [q.id for q in section.questions]
@@ -182,15 +166,12 @@ def save_section_answers(survey, section, existing_response):
         elaboration = request.form.get(f'elaboration_{question.id}', '').strip()
 
         if choice:
-            answer = Answer(
+            db.session.add(Answer(
                 response_id=existing_response.id,
                 question_id=question.id,
                 choice=choice,
                 elaboration=elaboration if elaboration else None
-            )
-            db.session.add(answer)
-
-    db.session.commit()
+            ))
 
 
 @survey_bp.route('/thank-you')
